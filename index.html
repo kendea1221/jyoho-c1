@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>情報I</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@100..900&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: "Noto Sans JP", sans-serif;
+      margin: 2rem auto;
+      max-width: 900px;
+      padding: 1rem;
+      background-color: #f8f9fa;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    #updated {
+      text-align: center;
+      color: #6c757d;
+      font-size: 0.95rem;
+      margin-bottom: 1.5rem;
+    }
+
+    details {
+      background-color: #fff;
+      border: 1px solid #dee2e6;
+      border-radius: 0.5rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+
+    summary {
+      padding: 1rem;
+      font-size: 1.1rem;
+      font-weight: bold;
+      cursor: pointer;
+      border-bottom: 1px solid #dee2e6;
+      background-color: #e9ecef;
+      border-radius: 0.5rem 0.5rem 0 0;
+    }
+
+    .file-list {
+      padding: 1rem;
+    }
+
+    .file-item {
+      display: block;
+      margin-bottom: 0.5rem;
+      color: #007bff;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .file-item:hover {
+      text-decoration: underline;
+    }
+
+    .modal {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal-content {
+      background: white;
+      width: 90%;
+      max-width: 700px;
+      max-height: 80%;
+      overflow: auto;
+      border-radius: 1rem;
+      padding: 1.5rem;
+      box-shadow: 0 0 20px rgba(0,0,0,0.3);
+      position: relative;
+    }
+
+    .modal-content pre {
+      background-color: #f1f3f5;
+      border: 1px solid #ccc;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-family: monospace;
+      font-size: 0.9rem;
+      user-select: none;
+    }
+
+    .close-btn {
+      position: absolute;
+      top: 1rem;
+      right: 1.5rem;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: #aaa;
+    }
+
+    .close-btn:hover {
+      color: #000;
+    }
+
+    @media (max-width: 600px) {
+      .modal-content {
+        width: 95%;
+        height: 85%;
+        padding: 1rem;
+      }
+    }
+
+    #lock-screen {
+      text-align: center;
+      margin-top: 5rem;
+    }
+
+    #lock-screen input {
+      padding: 0.5rem;
+      font-size: 1rem;
+      margin: 0.5rem;
+      width: 200px;
+    }
+
+    #lock-screen button {
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 0.3rem;
+      cursor: pointer;
+    }
+
+    #lock-screen button:hover {
+      background: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <!-- 🔐 ロック画面 -->
+  <div id="lock-screen">
+    <h2>🔐 パスワードを入力してください</h2>
+    <input type="password" id="password-input" placeholder="パスワード" />
+    <button onclick="checkPassword()">送信</button>
+    <p id="error-msg" style="color:red;"></p>
+  </div>
+
+  <!-- 🔓 本体コンテンツ -->
+  <div id="main-content" style="display:none;">
+    <h1>情報I</h1>
+    <div id="updated">更新時間：読込中</div>
+    <div id="container">読込中...</div>
+
+    <div class="modal" id="modal" onclick="closeModal(event)">
+      <div class="modal-content">
+        <span class="close-btn" onclick="closeModal(event)">×</span>
+        <pre id="code"></pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const repoUser = "kendea1221";
+    const repoName = "jyoho-c1";
+    const branch = "main";
+    const rawBase = `https://raw.githubusercontent.com/${repoUser}/${repoName}/${branch}/`;
+    const correctPassword = "jyoho2025";  // ← パスワードはここで変更可能
+
+    function checkPassword() {
+      const input = document.getElementById("password-input").value;
+      const error = document.getElementById("error-msg");
+      if (input === correctPassword) {
+        document.getElementById("lock-screen").style.display = "none";
+        document.getElementById("main-content").style.display = "block";
+        fetchLastCommitDate();
+        fetchRepoTree();
+      } else {
+        error.textContent = "パスワードが違います。";
+      }
+    }
+
+    async function fetchRepoTree() {
+      const branchRes = await fetch(`https://api.github.com/repos/${repoUser}/${repoName}/branches/${branch}`);
+      if (!branchRes.ok) {
+        document.getElementById("container").textContent = "エラー：ブランチ取得失敗";
+        return;
+      }
+      const branchData = await branchRes.json();
+      const sha = branchData.commit.sha;
+
+      const treeRes = await fetch(`https://api.github.com/repos/${repoUser}/${repoName}/git/trees/${sha}?recursive=1`);
+      if (!treeRes.ok) {
+        document.getElementById("container").textContent = "エラー：ファイルツリー取得失敗";
+        return;
+      }
+
+      const data = await treeRes.json();
+      const files = data.tree.filter(item => item.type === "blob");
+
+      const structure = {};
+      files.forEach(file => {
+        const parts = file.path.split("/");
+        if (parts.length < 2) return; // ルート直下は無視
+        const dir = parts[0];
+        const name = parts.slice(1).join("/");
+        if (!structure[dir]) structure[dir] = [];
+        structure[dir].push(file.path);
+      });
+
+      renderTree(structure);
+    }
+
+    function renderTree(structure) {
+      const container = document.getElementById("container");
+      container.innerHTML = "";
+
+      Object.entries(structure).forEach(([dir, files]) => {
+        const details = document.createElement("details");
+        const summary = document.createElement("summary");
+        summary.textContent = dir;
+        details.appendChild(summary);
+
+        const fileList = document.createElement("div");
+        fileList.className = "file-list";
+
+        files.forEach(filePath => {
+          const filename = filePath.split("/").slice(-1)[0];
+          const item = document.createElement("a");
+          item.className = "file-item";
+          item.textContent = filename;
+          item.onclick = () => loadFile(filePath);
+          fileList.appendChild(item);
+        });
+
+        details.appendChild(fileList);
+        container.appendChild(details);
+      });
+    }
+
+    async function loadFile(path) {
+      const url = rawBase + path;
+      const res = await fetch(url);
+      const text = await res.ok ? await res.text() : `読み込みエラー：${res.status}`;
+      document.getElementById("code").textContent = text;
+      document.getElementById("modal").style.display = "flex";
+    }
+
+    function closeModal(e) {
+      if (e.target.id === "modal" || e.target.classList.contains("close-btn")) {
+        document.getElementById("modal").style.display = "none";
+      }
+    }
+
+    async function fetchLastCommitDate() {
+      const res = await fetch(`https://api.github.com/repos/${repoUser}/${repoName}/commits?per_page=1`);
+      if (!res.ok) {
+        document.getElementById("updated").textContent = "更新時間取得失敗";
+        return;
+      }
+      const data = await res.json();
+      const date = new Date(data[0].commit.committer.date);
+      document.getElementById("updated").textContent = `更新時間：${date.toLocaleString("ja-JP")}`;
+    }
+  </script>
+</body>
+</html>
